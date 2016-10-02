@@ -1,0 +1,10 @@
+# Tips of config page in interactive mode.
+list     - List current settings.
+save     - Save config.
+default  - Reset the settings to default value.
+help     - Show this text.
+back     - Go back to main menu without saving.
+
+<property>=<value>
+         - Set the property to value. Spaces are not allowed.
+           Example: allow_guest=0

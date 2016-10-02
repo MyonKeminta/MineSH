@@ -1,0 +1,4 @@
+# Server intro of interactive mode.
+You are now in interactive mode of MineSH server.
+MineSH is a shell-remaked minefield.
+Respect: http://mienfield.com/
