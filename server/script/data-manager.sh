@@ -6,7 +6,7 @@ source "${MINESH_SERVER_PATH}/script/utils.sh"
 cleanUpData()
 {
 	if [[ ! -e ${MINESH_SVR_DATA_DIR} ]]; then
-		mineshErr "Cannot find minesh server data directory."
+		mineshInfo "No thing to clean."
 		return 1
 	fi
 
@@ -23,13 +23,13 @@ cleanUpData()
 # Mines are generated for each block.
 generateMap()
 {
-	local rate=25
-	local blockWidth=50
-	local blockHeight=50
-	local width
-	local height
-	local rows
-	local columns
+	local -i rate=25
+	local -i blockWidth=50
+	local -i blockHeight=50
+	local -i width
+	local -i height
+	local -i rows
+	local -i columns
 
 	if [[ $# -lt 2 ]]; then
 		mineshErr "Too few args passed to generateMap"
@@ -110,7 +110,7 @@ generateMap()
 		((width=colomns*blockWidth))
 		mineshInfo "Rounded width to ${width}."
 	fi
-	if [[ ${height}%{blockHeight} -gt 0 ]]; then
+	if [[ ${height}%${blockHeight} -gt 0 ]]; then
 		((++rows))
 		((height=rows*blockHeight))
 		mineshInfo "Rounded height to ${height}."

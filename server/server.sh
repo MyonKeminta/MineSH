@@ -9,6 +9,8 @@ export MINESH_SVR_DATA_DIR="~/.minesh-server"
 source "${MINESH_SERVER_PATH}/script/errinfo.sh"
 source "${MINESH_SERVER_PATH}/script/utils.sh"
 source "${MINESH_SERVER_PATH}/script/config.sh"
+source "${MINESH_SERVER_PATH}/script/data-manager.sh"
+source "${MINESH_SERVER_PATH}/script/server-core.sh"
 
 quitNormally()
 {
@@ -59,13 +61,17 @@ interactiveMode()
 				;;
 
 			create )
+				echo "Please enter map args:"
+				echo "<width> <height> [--mine-rate <rate-percent>] [--block <block-width> <block-height>]"
+				read input
+				generateMap $input
 				;;
 
-			setup )
-				;;
+			# setup )
+			# 	;;
 
 			clean )
-				
+				cleanUpData
 				;;
 
 			backup )

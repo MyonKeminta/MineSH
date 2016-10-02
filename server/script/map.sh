@@ -55,3 +55,28 @@ hasMine()
 	# TODO: Implement this.
 }
 
+# getCellState <x> <y>
+# echo 0-8 for cleared cells.
+# echo 9 for bombed cells.
+# echo . for uncleared cells.
+getCellState()
+{
+	# TODO: Implement this.
+}
+
+# checkCell <x> <y>
+# This means user clicked cell (x,y) to open it.
+# Expand cleared area in need.
+checkCell()
+{
+	# TODO: Implement this.
+}
+
+# putFlag <x> <y>
+# This means user right clicked cell (x,y) to flag it.
+# DO NOT FLAG IF NO MINE HERE!!!
+putFlag()
+{
+	# TODO: Implement this.
+}
+
