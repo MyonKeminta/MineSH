@@ -9,6 +9,16 @@ tempPath="${MINESH_SVR_DATA_DIR}/.temp"
 requestQueue="%{tempPath}/queue"
 declare ncatPid
 
+# Established connections
+declare -A connections
+readonly CONNECTED=1
+readonly ACCEPTED=2
+readonly GUEST=3
+readonly LOGEDIN=4
+
+# Descriptor &5: Request queue
+
+
 onServerStopped()
 {
 	saveStateMap
@@ -81,6 +91,7 @@ runServer()
 	fi
 
 	mkfifo "$requestQueue"
+	exec 5<>"$requestQueue"
 
 	local cmd="${MINESH_SERVER_PATH}/script/networkInterface ${requestQueue} ${tempPath}"
 	if [[ -n DISABLE_STYLE ]]; then

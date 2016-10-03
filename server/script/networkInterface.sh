@@ -1,5 +1,8 @@
 #!/bin/bash
 
+
+# Initialize the environment
+
 serverPath=$(dirname $(cd $(dirname $(which $0)); pwd))
 
 if [[ $# -ge 3 && $3 = "--disable-style" ]]; then
@@ -26,6 +29,10 @@ while [[ -e "${tempPath}/${connectionId}" ]]; do
 	((++connectionId))
 done
 
+
+
+# Build the tunnel to communicate with the server core.
+
 responseQueue="${tempPath}/${connectionId}"
 mkfifo $responseQueue
 if [[ $? -ne 0 ]]; then
@@ -39,8 +46,10 @@ exec 7<>"${requestQueue}"
 # 8: response queue.
 exec 8<>"${responseQueue}"
 
-
 declare pushPid
+
+
+
 
 # onExit [-n]
 # -n: Do not kill the push loop.
@@ -53,10 +62,17 @@ onExit()
 
 }
 
+trap "onExit" 0 1 2 3 15
+
+
+# Start the two loops
+
+# Send responses to client
 pushResponseLoop()
 {
 	local str
-	while read str <&8; do
+	while true; do
+		read str <&8
 		echo $str
 		if [[ $str = "Disconnect" ]]; then
 			onExit -n
@@ -68,7 +84,8 @@ pushResponseLoop()
 pushResponseLoop &
 pushPid=$!
 
-trap "onExit" 0 1 2 3 15
+
+echo "${connectionId} Connected"
 
 while read request; do
 	request="${connectionId} ${request}"
@@ -76,3 +93,4 @@ while read request; do
 done
 
 exit 0
+

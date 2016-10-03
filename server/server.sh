@@ -3,8 +3,9 @@
 # Uncomment this statement to disable color and bold text.
 # export readonly DISABLE_STYLE=1
 
-export MINESH_SERVER_PATH=$(cd $(dirname $(which $0)); pwd)
-export MINESH_SVR_DATA_DIR="~/.minesh-server"
+export readonly MINESH_SERVER_PATH=$(cd $(dirname $(which $0)); pwd)
+export readonly MINESH_SVR_DATA_DIR="~/.minesh-server"
+export readonly MINESH_VERSION="v0.1a"
 
 source "${MINESH_SERVER_PATH}/script/errinfo.sh"
 source "${MINESH_SERVER_PATH}/script/utils.sh"
