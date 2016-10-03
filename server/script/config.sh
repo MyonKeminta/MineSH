@@ -41,6 +41,10 @@ printConfig()
 
 saveConfig()
 {
+	if [[ ! -e ${MINESH_SVR_DATA_DIR}/config ]]; then
+		mkdir -p ${MINESH_SVR_DATA_DIR}/config
+	fi
+
 	# If no write permission:
 	if [[ -f $configFile && ! -w $configFile ]]; then
 		mineshNoWritePermission
@@ -75,7 +79,7 @@ configEdit()
 	echo "Current config:"
 	printConfig
 
-	while [[ true ]]; do
+	while true; do
 		echoc 4 -n 'config'
 		echo -n ' > '
 

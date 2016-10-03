@@ -33,7 +33,7 @@ interactiveMode()
 	echo ""
 	grep --color=never -E $regRmComment "${path}/text/menu.txt"
 
-	while [[ true ]]; do
+	while true; do
 		echo -n '> '
 
 		# Set input style
@@ -54,6 +54,14 @@ interactiveMode()
 				;;
 
 			start )
+				echo "Please specify which port to run server (Enter to use default value):"
+				read input
+				if [[ -n $input ]]; then
+					runServer -p $input
+				else
+					runServer
+				fi
+				exit $?
 				;;
 
 			config )

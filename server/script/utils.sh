@@ -19,7 +19,7 @@ echoc()
 
 confirm()
 {
-	while [[ true ]]; do
+	while true; do
 		echo -n "[y/n]: "
 		$TPUT setaf 3
 		$TPUT bold
