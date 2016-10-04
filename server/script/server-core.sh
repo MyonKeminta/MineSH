@@ -9,6 +9,7 @@ source "${MINESH_SERVER_PATH}/script/map.sh"
 tempPath="${MINESH_SVR_DATA_DIR}/.temp"
 requestQueue="${tempPath}/queue"
 declare ncatPid
+declare loopPid
 
 # Established connections
 declare -A connections
@@ -30,6 +31,7 @@ onServerStopped()
 	rm -r $tempPath
 	if [[ -n $ncatPid ]]; then
 		kill $ncatPid
+		unset ncatPid
 	fi
 	stopped=1
 }
@@ -40,6 +42,19 @@ stopServer()
 		echo 'Stop' > ${requestQueue}
 		wait
 	fi
+}
+
+forceStopServer()
+{
+	if [[ -n $ncatPid ]]; then
+		kill $ncatPid
+		unset ncatPid
+	fi
+	if [[ -n $loopPid ]]; then
+		kill $loopPid
+		unset loopPid
+	fi
+	onServerStopped
 }
 
 disconnect()
@@ -127,11 +142,11 @@ runServer()
 		fi
 	fi
 
-	# if ! loadMap "${MINESH_SVR_DATA_DIR}/map"; then
-	# 	mineshErr "Load map file failed."
-	# 	onServerStopped
-	# 	return 1
-	# fi
+	if ! loadMap "${MINESH_SVR_DATA_DIR}/map"; then
+		mineshErr "Load map file failed."
+		onServerStopped
+		return 1
+	fi
 
 	ncat --version
 	if [[ $? -ne 0 ]]; then
@@ -153,10 +168,10 @@ runServer()
 
 	serverLoop &
 
-	local loopPid=$!
+	loopPid=$!
 
-	trap "stopServer; exit 1" 1 2 3
-	trap "stopServer; exit 0" 15
+	trap "forceStopServer; exit 1" 1 2 3
+	trap "forceStopServer; exit 1" 15
 	
 	$TPUT bold
 	mineshInfo "Server started. Press Ctrl+D to stop."

@@ -44,7 +44,7 @@ setLogFile()
 	if [[ $# -lt 1 || -z $1 ]]; then
 		export mineshErr "Invalid args."
 	fi
-	exec 4>>"${1:-'/dev/null'}"
+	exec 4>"${1:-'/dev/null'}"
 }
 
 mineshLog()
