@@ -4,7 +4,7 @@
 # export readonly DISABLE_STYLE=1
 
 export readonly MINESH_SERVER_PATH=$(cd $(dirname $(which $0)); pwd)
-export readonly MINESH_SVR_DATA_DIR="~/.minesh-server"
+export readonly MINESH_SVR_DATA_DIR="${HOME}/.minesh-server"
 export readonly MINESH_VERSION="v0.1a"
 
 source "${MINESH_SERVER_PATH}/script/errinfo.sh"
@@ -12,6 +12,8 @@ source "${MINESH_SERVER_PATH}/script/utils.sh"
 source "${MINESH_SERVER_PATH}/script/config.sh"
 source "${MINESH_SERVER_PATH}/script/data-manager.sh"
 source "${MINESH_SERVER_PATH}/script/server-core.sh"
+
+# setLogFile "${MINESH_SVR_DATA_DIR}/log"
 
 quitNormally()
 {

@@ -4,7 +4,7 @@ source "${MINESH_SERVER_PATH}/script/errinfo.sh"
 
 declare -ix allow_guest default_port max_online
 
-readonly configFile="${MINESH_SVR_DATA_DIR}/config/server.conf"
+configFile="${MINESH_SVR_DATA_DIR}/config/server.conf"
 
 makeDefault()
 {
@@ -29,7 +29,7 @@ loadConfig()
 		return 2
 	fi
 
-	source configFile
+	source $configFile
 }
 
 printConfig()
@@ -51,7 +51,7 @@ saveConfig()
 		return 3
 	fi
 
-	printConfig > configFile
+	printConfig > $configFile
 }
 
 resetConfig()

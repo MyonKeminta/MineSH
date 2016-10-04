@@ -9,12 +9,14 @@ svrTipHead="[minesh server] "
 
 mineshErr()
 {
-	echoc 1 "${svrTipHead}$1" >&2
+	echoc 1 "${svrTipHead}$*" >&2
+	mineshLogNoDisplay "Err: $*"
 }
 
 mineshInfo()
 {
-	echoc 4 "${svrTipHead}$1" >&2
+	echoc 4 "${svrTipHead}$*" >&2
+	mineshLogNoDisplay "Info: $*"
 }
 
 mineshUndefinedCommand()
