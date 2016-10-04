@@ -51,15 +51,16 @@ declare pushPid
 
 
 
-# onExit [-n]
-# -n: Do not kill the push loop.
+# onExit [-s]
+# -s: Disconnected by server.
 onExit()
 {
-	if [[ $# -eq 0 || $1 != "-n" ]]; then
+	# If no -s
+	if [[ $# -eq 0 || $1 != "-s" ]]; then
 		kill pushPid
+		echo "${connectionId} Disconnect" >&7
 	fi
 	rm ${responseQueue}
-
 }
 
 trap "onExit" 0 1 2 3 15
@@ -75,7 +76,7 @@ pushResponseLoop()
 		read str <&8
 		echo $str
 		if [[ $str = "Disconnect" ]]; then
-			onExit -n
+			onExit -s
 			return 0
 		fi
 	done
@@ -85,7 +86,7 @@ pushResponseLoop &
 pushPid=$!
 
 
-echo "${connectionId} Connected"
+echo "${connectionId} Connected" >&7
 
 while read request; do
 	request="${connectionId} ${request}"

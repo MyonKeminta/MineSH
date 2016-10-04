@@ -67,19 +67,27 @@ getCellState()
 	:
 }
 
-# checkCell <x> <y>
+# getRegionState <x> <y> <w> <h>
+getRegionState()
+{
+	:
+}
+
+# checkCell <x> <y> [...]
 # This means user clicked cell (x,y) to open it.
+# More than one pair of x,y may be given.
 # Expand cleared area in need.
-checkCell()
+checkCells()
 {
 	# TODO: Implement this.
 	:
 }
 
-# putFlag <x> <y>
+# putFlag <x> <y> [...]
 # This means user right clicked cell (x,y) to flag it.
+# More than one pair of x,y may be given.
 # DO NOT FLAG IF NO MINE HERE!!!
-putFlag()
+putFlags()
 {
 	# TODO: Implement this.
 	:

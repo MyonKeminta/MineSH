@@ -8,8 +8,12 @@ source "${MINESH_SERVER_PATH}/script/map.sh"
 
 tempPath="${MINESH_SVR_DATA_DIR}/.temp"
 requestQueue="${tempPath}/queue"
+responsePath=$tempPath
 declare ncatPid
 declare loopPid
+
+serverConfirmMsg="MineSH-server ${MINESH_VERSION}"
+clientConfirmMsg="MineSH-client ${MINESH_VERSION}"
 
 # Established connections
 declare -A connections
@@ -59,12 +63,24 @@ forceStopServer()
 
 disconnect()
 {
-	echo "Disconnect" > "${tempPath}/$1"
+	unset connections[$1]
 	$TPUT bold
 	$TPUT setaf 1
 	mineshLog "ID $1 disconnected."
 	$TPUT sgr0
 }
+
+disconnectByClient()
+{
+	disconnect $*
+}
+
+disconnectByServer()
+{
+	echo "Disconnect" > "${tempPath}/$1"
+	disconnect $*
+}
+
 
 serverLoop()
 {
@@ -72,19 +88,97 @@ serverLoop()
 	local request
 	while true; do
 		read request <&5
+
+		#Debug code
 		echoc 5 "Got request: $request"
+
 		if [[ $request = "Stop" ]]; then
 			for i in ${!connections[@]}; do
-				disconnect $i
+				disconnectByServer $i
 			done
 			onServerStopped
 			return 0
 		fi
 
 		line=$(cut -d ' ' -f 1 <<< "$request")
-		request=$(cut -d ' ' -f 2- <<< "$request")
+		request=($(cut -d ' ' -f 2- <<< "$request"))
 
+		if ! grep -q -E "^[0-9]+$" <<< line; then
+			continue
+		fi
 
+		if [[ ${request} = "Disconnect" ]]; then
+			disconnectByClient $line
+			continue
+		fi
+
+		case ${connections[$line]-'null'} in
+			null )
+				if [[ ${request[0]} = 'Connected' ]]; then
+					connections[$line]=$UNKNOWN
+					echo "$serverConfirmMsg" > "${responsePath}/${line}"
+				fi
+				;;
+
+			${UNKNOWN} )
+				if [[ ${request[@]} = ${clientConfirmMsg} ]]; then
+					connections[$line]=$CONNECTED
+				else
+					disconnectByServer $line
+				fi
+				;;
+
+			${CONNECTED} )
+				if [[ ${request[0]} = "GUEST" ]]; then
+					echo "Accept $(getMapWidth) $(getMapHeight)" > "${responsePath}/${line}"
+					connections[$line]=$GUEST
+				else
+					#Log in not implemented
+					echo "Deny" > "${responsePath}/${line}"
+				fi
+				;;
+
+			${GUEST} )
+				case ${request[0]} in
+					Get )
+						if [[ ${#resuest[@]} -ge 5 ]]; then
+							local data="${request[1]} ${request[2]} ${request[3]} ${request[4]}"
+							data="${data} $(getRegionState ${request[1]} ${resuest[2]} ${request[3]} ${request[4]})"
+							echo $data > "${responsePath}/${line}"
+						fi
+						;;
+
+					Check )
+						if [[ ${#request[@]} -gt 1 ]]; then
+							if checkCells $(cut -d ' ' -f 2- <<< "${request[@]}"); then
+								for i in ${!connections[@]}; do
+									if [[ connections[$i] -gt ${CONNECTED} ]]; then
+										echo "Changed" > "${responsePath}/${i}"
+									fi
+								done
+							fi
+						fi
+						;;
+
+					Flag )
+						if [[ ${#request[@]} -gt 1 ]]; then
+							if putFlags $(cut -d ' ' -f 2- <<< "${request[@]}"); then
+								for i in ${!connections[@]}; do
+									if [[ connections[$i] -gt ${CONNECTED} ]]; then
+										echo "Changed" > "${responsePath}/${i}"
+									fi
+								done
+							fi
+						fi
+						;;
+
+				esac
+				;;
+
+			${LOGEDIN} )
+				# Not implemented
+				;;
+		esac
 
 	done
 }
