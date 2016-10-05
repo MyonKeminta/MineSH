@@ -142,7 +142,7 @@ serverLoop()
 				case ${request[0]} in
 					Get )
 						if [[ ${#resuest[@]} -ge 5 ]]; then
-							local data="${request[1]} ${request[2]} ${request[3]} ${request[4]}"
+							local data="Map ${request[1]} ${request[2]} ${request[3]} ${request[4]}"
 							data="${data} $(getRegionState ${request[1]} ${resuest[2]} ${request[3]} ${request[4]})"
 							echo $data > "${responsePath}/${line}"
 						fi
