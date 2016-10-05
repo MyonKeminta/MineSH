@@ -31,8 +31,8 @@ getMapHeight()
 # map-dir-path/state.map stores which cell was flagged, bombed or cleared.
 loadMap()
 {
-	if [[ $# -lt 1 ]]; then
-		mineshErr "Invalid args."
+	if [[ $# -lt 1 || -z $1 || ! -e $1 ]]; then
+		mineshErr "loadMap: Invalid args."
 		return 1
 	fi
 	_mineMapPath="$1/mine.map"
@@ -45,6 +45,7 @@ loadMap()
 saveStateMap()
 {
 	# TODO: Implement this.
+	:
 }
 
 # hasMine <x> <y>
@@ -53,5 +54,42 @@ saveStateMap()
 hasMine()
 {
 	# TODO: Implement this.
+	:
+}
+
+# getCellState <x> <y>
+# echo 0-8 for cleared cells.
+# echo 9 for bombed cells.
+# echo . for uncleared cells.
+getCellState()
+{
+	# TODO: Implement this.
+	:
+}
+
+# getRegionState <x> <y> <w> <h>
+getRegionState()
+{
+	:
+}
+
+# checkCell <x> <y> [...]
+# This means user clicked cell (x,y) to open it.
+# More than one pair of x,y may be given.
+# Expand cleared area in need.
+checkCells()
+{
+	# TODO: Implement this.
+	:
+}
+
+# putFlag <x> <y> [...]
+# This means user right clicked cell (x,y) to flag it.
+# More than one pair of x,y may be given.
+# DO NOT FLAG IF NO MINE HERE!!!
+putFlags()
+{
+	# TODO: Implement this.
+	:
 }
 

@@ -3,12 +3,17 @@
 # Uncomment this statement to disable color and bold text.
 # export readonly DISABLE_STYLE=1
 
-export MINESH_SERVER_PATH=$(cd $(dirname $(which $0)); pwd)
-export MINESH_SVR_DATA_DIR="~/.minesh-server"
+export readonly MINESH_SERVER_PATH=$(cd $(dirname $(which $0)); pwd)
+export readonly MINESH_SVR_DATA_DIR="${HOME}/.minesh-server"
+export readonly MINESH_VERSION="v0.1a"
 
 source "${MINESH_SERVER_PATH}/script/errinfo.sh"
 source "${MINESH_SERVER_PATH}/script/utils.sh"
 source "${MINESH_SERVER_PATH}/script/config.sh"
+source "${MINESH_SERVER_PATH}/script/data-manager.sh"
+source "${MINESH_SERVER_PATH}/script/server-core.sh"
+
+# setLogFile "${MINESH_SVR_DATA_DIR}/log"
 
 quitNormally()
 {
@@ -31,7 +36,7 @@ interactiveMode()
 	echo ""
 	grep --color=never -E $regRmComment "${path}/text/menu.txt"
 
-	while [[ true ]]; do
+	while true; do
 		echo -n '> '
 
 		# Set input style
@@ -52,6 +57,14 @@ interactiveMode()
 				;;
 
 			start )
+				echo "Please specify which port to run server (Enter to use default value):"
+				read input
+				if [[ -n $input ]]; then
+					runServer -p $input
+				else
+					runServer
+				fi
+				exit $?
 				;;
 
 			config )
@@ -59,13 +72,17 @@ interactiveMode()
 				;;
 
 			create )
+				echo "Please enter map args:"
+				echo "<width> <height> [--mine-rate <rate-percent>] [--block <block-width> <block-height>]"
+				read input
+				generateMap $input
 				;;
 
-			setup )
-				;;
+			# setup )
+			# 	;;
 
 			clean )
-				
+				cleanUpData
 				;;
 
 			backup )
