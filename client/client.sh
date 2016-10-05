@@ -115,7 +115,7 @@ runGame()
 interactiveMode()
 {
 	local tip1="Please enter the server you want to connect to."
-	local tip2="(Example: www.abc.com:2333 or 127.0.0.1:2333)"
+	local tip2="(Example: www.abc.com:2333 or 127.0.0.1:65535)"
 	local server=$(dialog --title "${dialogTitle}" --inputbox "${tip1}\n\n${tip2}" 10 55 3>&1 1>&2 2>&3)
 	if [[ $? -ne 0 ]]; then
 		clear
