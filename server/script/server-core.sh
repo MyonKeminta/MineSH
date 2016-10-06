@@ -134,7 +134,7 @@ serverLoop()
 					connections[$line]=$GUEST
 				else
 					#Log in not implemented
-					echo "Deny" > "${responsePath}/${line}"
+					echo "Deny Method Not Implemented" > "${responsePath}/${line}"
 				fi
 				;;
 
