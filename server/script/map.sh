@@ -24,6 +24,20 @@ getMapHeight()
 	echo $_mapHeight
 }
 
+# getIndexByCell <x> <y>
+# echo the index of the element representing the given cell in the map array.
+getIndexByCell()
+{
+	echo $(($1+$2*$_mapWidth))
+}
+
+# getCellByIndex <i>
+# echo the cell coordinate of the ith element in the map array.
+getCellByIndex()
+{
+	echo "$(($1%$_mapWidth)) $(($1/$_mapWidth))"
+}
+
 
 # loadMap <map-dir-path>
 # Load map from file to memory.
@@ -61,16 +75,48 @@ hasMine()
 # echo 0-8 for cleared cells.
 # echo 9 for bombed cells.
 # echo . for uncleared cells.
+# echo ! for flagged cells
 getCellState()
 {
 	# TODO: Implement this.
 	:
 }
 
+# isUnknown <x> <y>
+# return 0 if the cell is unknown
+isUnknown()
+{
+	[[ $(getCellState "$1" "$2") = '.' ]]
+	return $?
+}
+
+# getCellValue <x> <y>
+# echo 0-8 if no mine in the cell, and the value represents the count of mines around the cell.
+# echo 9 if there's a mine in this cell.
+getCellValue()
+{
+	# TODO: Implement this.
+	:
+}
+
+
 # getRegionState <x> <y> <w> <h>
 getRegionState()
 {
 	:
+}
+
+# triggerCells <x> <y> [...]
+# Mark the cells as triggered.
+# If mine under the cell, bomb.
+triggerCells()
+{
+	while [[ $# -ge 2 ]]; do
+		if [[ $(getCellState "$1" "$2") = '.' ]]; then
+			_stateMap[$(getIndexByCell "$1" "$2")]=$(getCellValue "$1" "$2")
+		fi
+		shift 2
+	done
 }
 
 # checkCell <x> <y> [...]
@@ -89,7 +135,14 @@ checkCells()
 # DO NOT FLAG IF NO MINE HERE!!!
 putFlags()
 {
-	# TODO: Implement this.
-	:
+	local changed=1
+	while [[ $# -ge 2 ]]; do
+		if hasMine "$1" "$2" && isUnknown "$1" "$2"; then
+			_stateMap[$(getIndexByCell "$1" "$2")]='!'
+			changed=0
+		fi
+		shift 2
+	done
+	return $changed
 }
 
