@@ -87,7 +87,7 @@ saveStateMap()
 
 	{
 		for (( i = 0; i < _mapHeight*_mapWidth; i++ )); do
-			echo "${_stateMap[$i]} "
+			echo -n "${_stateMap[$i]} "
 		done
 		echo
 	} > $_stateMapPath
@@ -351,7 +351,8 @@ generateMap()
 	local topBorderFlag
 	local bottomBorderFlag
 
-	echo $blockWidth $blockHeight $rows $columns $rate
+	# Debug code
+	# echo $blockWidth $blockHeight $rows $columns $rate
 
 	echo "Generating mines..."
 

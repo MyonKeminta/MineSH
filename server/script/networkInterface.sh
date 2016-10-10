@@ -55,20 +55,25 @@ declare pushPid
 # -s: Disconnected by server.
 onExit()
 {
+	if [[ $exited = 1 ]]; then
+		return 0
+	fi
+	exited=1
 	# If no -s
 	if [[ $# -eq 0 || $1 != "-s" ]]; then
-		kill pushPid
+		kill $pushPid
 		echo "${connectionId} Disconnect" >&7
 	fi
 	rm ${responseQueue}
 }
 
-trap "onExit" 0 1 2 3 15
+trap "onExit" 0 1 2 3
 
 
 # Start the two loops
 
 # Send responses to client
+# pushResponseLoop <main-process-pid>
 pushResponseLoop()
 {
 	local str
@@ -77,12 +82,13 @@ pushResponseLoop()
 		echo $str
 		if [[ $str = "Disconnect" ]]; then
 			onExit -s
+			kill -9 $1
 			return 0
 		fi
 	done
 }
 
-pushResponseLoop &
+pushResponseLoop $$ &
 pushPid=$!
 
 

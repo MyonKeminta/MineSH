@@ -103,7 +103,7 @@ serverLoop()
 		line=$(cut -d ' ' -f 1 <<< "$request")
 		request=($(cut -d ' ' -f 2- <<< "$request"))
 
-		if ! grep -q -E "^[0-9]+$" <<< line; then
+		if ! grep -q -E "^[0-9]+$" <<< "$line"; then
 			continue
 		fi
 
@@ -129,7 +129,7 @@ serverLoop()
 				;;
 
 			${CONNECTED} )
-				if [[ ${request[0]} = "GUEST" ]]; then
+				if [[ ${request[0]} = "Guest" ]]; then
 					echo "Accept $(getMapWidth) $(getMapHeight)" > "${responsePath}/${line}"
 					connections[$line]=$GUEST
 				else
@@ -141,9 +141,9 @@ serverLoop()
 			${GUEST} )
 				case ${request[0]} in
 					Get )
-						if [[ ${#resuest[@]} -ge 5 ]]; then
+						if [[ ${#request[@]} -ge 5 ]]; then
 							local data="Map ${request[1]} ${request[2]} ${request[3]} ${request[4]}"
-							data="${data} $(getRegionState ${request[1]} ${resuest[2]} ${request[3]} ${request[4]})"
+							data="${data} $(getRegionState ${request[1]} ${request[2]} ${request[3]} ${request[4]})"
 							echo $data > "${responsePath}/${line}"
 						fi
 						;;
@@ -249,10 +249,21 @@ runServer()
 		return 2
 	fi
 
+	local networkInterfacePath="${MINESH_SERVER_PATH}/script/networkInterface.sh"
+	if [[ ! -x "$networkInterfacePath" ]]; then
+		chmod +x "$networkInterfacePath"
+		if [[ $? -ne 0 ]]; then
+			mineshErr "Failed changing permission."
+			mineshInfo "Please change file \"${networkInterfacePath}\" to be executable (chmod +x) manually."
+			return 12
+		fi
+	fi
+
+
 	mkfifo "$requestQueue"
 	exec 5<>"$requestQueue"
 
-	local cmd="${MINESH_SERVER_PATH}/script/networkInterface ${requestQueue} ${tempPath}"
+	local cmd="${networkInterfacePath} ${requestQueue} ${tempPath}"
 	if [[ -n DISABLE_STYLE ]]; then
 		cmd="${cmd} --disable-style"
 	fi
