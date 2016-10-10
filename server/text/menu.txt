@@ -3,9 +3,9 @@ Interactive mode:
 start     - Run the server using existing data.
 config    - Change and manage current settings.
 create    - Generate new map.
-setup     - Setup the server.
+#setup     - Setup the server.
 clean     - Clean up current map file, user info and all settings.
-backup    - Save a backup of the map.
-restore   - Restore the map from a backup.
+#backup    - Save a backup of the map.
+#restore   - Restore the map from a backup.
 help      - Print this text.
 exit      - Exit.

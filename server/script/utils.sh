@@ -6,6 +6,7 @@ if [[ -n $DISABLE_STYLE ]]; then
 	TPUT=":"
 fi
 
+
 # Print text with color.
 # Usage: echoc <color> <args to echo...>
 # Example(Print a red line): echoc 1 -ne 'wtf\n'
@@ -19,7 +20,7 @@ echoc()
 
 confirm()
 {
-	while [[ true ]]; do
+	while true; do
 		echo -n "[y/n]: "
 		$TPUT setaf 3
 		$TPUT bold
@@ -36,6 +37,24 @@ confirm()
 
 		echoc 1 "Invalid input."
 	done
+}
+
+setLogFile()
+{
+	if [[ $# -lt 1 || -z $1 ]]; then
+		export mineshErr "Invalid args."
+	fi
+	exec 4>"${1:-'/dev/null'}"
+}
+
+mineshLog()
+{
+	date "+[%Y/%m/%d %H:%M:%S] $*" | tee -a '/dev/stderr' >&4
+}
+
+mineshLogNoDisplay()
+{
+	date "+[%Y/%m/%d %H:%M:%S] $*" >&4
 }
 
 #Ask before rm
@@ -57,3 +76,5 @@ safeRmDir()
 	fi
 	return 0
 }
+
+exec 4>'/dev/null'
