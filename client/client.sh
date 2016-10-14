@@ -12,6 +12,13 @@ readonly dialogTitle="MineSH ${MINESH_VERSION}"
 
 declare -i mapWidth mapHeight
 declare -a theMap
+declare -i cameraX cameraY
+declare -i cameraWidth cameraHeight
+declare -i selectionX selectionY
+declare fix_x fix_y
+declare isScreenWidthEven
+
+declare waitingForResize
 
 declare receiveLoopPid
 
@@ -23,6 +30,7 @@ readonly LOGEDIN=5
 readonly DISCONNECTED=-1
 readonly FAILED=-2
 gameState=$NULL
+
 
 
 onStopped()
@@ -41,10 +49,120 @@ onStoppedByUser()
 	onStopped
 }
 
+# getIndexByCell <x> <y>
+# Get the array index of the given position.
+getIndexByCell()
+{
+	echo $(($1+$2*mapWidth))
+}
+
+
+# setColorConfig <1|8|256>
+setColorConfig()
+{
+	
+}
+
+# getRand <min> <max>
+# Generate a integer in [min, max)
+getRand()
+{
+	local ran=$(dd bs=4 count=1 'if=/dev/urandom' status=none | od --format=u --address-radix=none)
+	echo $((ran%($2-$1)+$1))
+}
+
+refreshScreen()
+{
+	:
+}
+
+initMapPosition()
+{
+	eval $(resize)
+
+	cameraHeight=$((LINES-1))
+	cameraWidth=$(((COLUMNS-1)/2))
+
+	if [[ $cameraWidth -ge $mapWidth ]]; then
+		fix_x=1
+		cameraX=$((-(mapWidth - cameraWidth)/2))
+	else
+		fix_x=""
+		cameraX=$(getRand 0 $((mapWidth - cameraWidth)))
+	fi
+	if [[ $cameraHeight -ge $mapHeight ]]; then
+		fix_y=1
+		cameraY=$((-(cameraHeight - mapHeight)/2))
+	else
+		fix_y=""
+		cameraY=$(getRand 0 $((mapHeight - cameraHeight)))
+	fi
+	refreshScreen
+}
+
+# screenToMapX <x>
+# Convert screen coordinates X into map coordinates X
+screenToMapX()
+{
+	:
+}
+
+# screenToMapY <y>
+# Convert screen coordinates Y into map coordinates Y
+screenToMapY()
+{
+	:
+}
+
+# screenToMapCoordinates <x> <y>
+# Convert screen coordinates X,Y into map coordinates X,Y
+screenToMapCoordinates()
+{
+	echo $(screenToMapX $1; screenToMapY $2)
+}
+
+# cellSelect <x> <y>
+cellSelect()
+{
+	:
+}
+
+# cellSelectionMove <up|down|left|right>
+cellSelectionMove()
+{
+	:
+}
+
+
+onResized()
+{
+	:
+}
+
 
 receiveLoop()
 {
-	:
+	local response
+	local responseHead
+	local responseBody
+
+	while true; do
+		read response <&6
+		responseHead=$(cut -d ' ' -f 1 <<< response)
+		responseBody=$(cut -d ' ' -f 2- <<< response)
+		responseBody=($responseBody)
+
+		case $responseHead in
+			Disconnect )
+				;;
+
+			Map )
+				;;
+
+			Changed )
+				;;
+		esac
+	done
 }
 
 mainLoop()
@@ -116,11 +234,13 @@ interactiveMode()
 {
 	local tip1="Please enter the server you want to connect to."
 	local tip2="(Example: www.abc.com:2333 or 127.0.0.1:65535)"
-	local server=$(dialog --title "${dialogTitle}" --inputbox "${tip1}\n\n${tip2}" 10 55 3>&1 1>&2 2>&3)
+	local server
+	server=$(dialog --title "${dialogTitle}" --inputbox "${tip1}\n\n${tip2}" 10 55 3>&1 1>&2 2>&3)
+
 	if [[ $? -ne 0 ]]; then
 		clear
 		echo "Canceled." >&2
-		return 1
+		exit 1
 	fi
 	clear
 	connectToServer "$(cut -d ':' -f 1 <<< ${server})" "$(cut -d ':' -f 2 <<< ${server})"
@@ -132,12 +252,12 @@ interactiveMode()
 
 	local option
 	while true; do
-		option=$(dialog --title %{dialogTitle} --menu "Connected successfully." 10 30 3 1 "Log in" \
+		option=$(dialog --title ${dialogTitle} --menu "Connected successfully." 10 30 3 1 "Log in" \
 			2 "Play as guest" 3 "Register" 3>&1 1>&2 2>&3)
 		if [[ $? -ne 0 ]]; then
 			clear
 			echo "Exited." >&2
-			break
+			exit 1
 		fi
 		case $option in
 			1 )
