@@ -198,46 +198,29 @@ checkCells()
 			result=0
 			triggerCells "$1" "$2"
 			if [[ getCellValue "$1" "$2" = 0 ]]; then
-				if [[ $1 -eq 0 && $2 -eq 0 ]]; then
-					triggerCells "$(( $1 + 1 ))" "$2"
-					triggerCells "$(( $1 + 1 ))" "$(( $2 + 1 ))"
-					triggerCells "$1" "$(( $2 + 1 ))"
-				elif [[ $1 -eq _mapWidth && $2 -eq 0 ]]; then
-					triggerCells "$(( $1 - 1 ))" "$2"
-					triggerCells "$(( $1 - 1 ))" "$(( $2 + 1 ))"
-					triggerCells "$1" "$(( $2 + 1 ))"
-				elif [[ $1 -eq 0 && $2 -eq _mapHeight ]]; then
-					triggerCells "$1" "$(( $2 - 1))"
-					triggerCells "$(( $1 + 1 ))" "$(( $2 - 1 ))"
-					triggerCells "$(( $1 + 1 ))" "$2"
-				elif [[ $1 -eq _myWidth 77 $2 -eq _myHeight ]]; then
-					triggerCells "$(( $1 -1 ))" "$2"
-					triggerCells "$(( $1 -1 ))" "$(( $2 - 1 ))"
-					triggerCells "$1" "$(( $2 - 1))"
-				elif [[ $1 -eq 0 ]]; then
-					triggerCells "$1" "$(( $2 - 1))"
-					triggerCells "$(( $1 + 1 ))" "$(( $2 - 1 ))"
-					triggerCells "$(( $1 + 1 ))" "$2"
-					triggerCells "$(( $1 + 1 ))" "$(( $2 + 1 ))"
-					triggerCells "$1" "$(( $2 + 1 ))"
-				elif [[ $1 -eq _myWidth ]]; then
-					triggerCells "$1" "$(( $2 - 1 ))"
-					triggerCells "$(( $1 - 1 ))" "$(( $2 - 1 ))"
-					triggerCells "$(( $1 - 1 ))" "$2"
-					triggerCells "$(( $1 - 1 ))" "$(( $2 + 1 ))"
-					triggerCells "$1" "$(( $2 + 1 ))"
-				elif [[ $2 -eq 0 ]]; then
-					triggerCells "$(( $1 - 1 ))" "$2"
-					triggerCells "$(( $1 - 1 ))" "$(( $2 + 1 ))"
-					triggerCells "$1" "(( $2 + 1 ))"
-					triggerCells "$(( $1 + 1 ))" "$(( $2 + 1 ))"
-					triggerCells "$(( $1 + 1 ))" "$2"
-				elif [[ $2 -eq _myHeight ]]; then
-					triggerCells "$(( $1 - 1 ))" "$2"
-					triggerCells "$(( $1 - 1 ))" "$(( $2 - 1 ))"
-					triggerCells "$1" "$(( $2 - 1 ))"
-					triggerCells "$(( $1 + 1 ))" "$(( $2 - 1 ))"
-					triggerCells "$(( $1 + 1 ))" "$2"
+				if [[ $1 -ne 0 ]]; then
+					checkCells "$(($1 - 1))" "$2"
+				fi
+				if [[ $1 -ne $(($_myWidth - 1)) ]]; then
+					checkCells "$(($1 + 1))" "$2"
+				fi
+				if [[ $2 -ne 0 ]]; then
+					checkCells "$1" "$(($2 - 1))"
+				fi
+				if [[ $2 -ne $(($_myHeight - 1)) ]]; then
+					checkCells "$1" "$(($2 + 1))"
+				fi
+				if [[ $1 -ne 0 && $2 -ne 0 ]]; then
+					checkCells "$(($1 - 1))" "$(($2 - 1))"
+				fi
+				if [[ $1 -ne 0 && $2 -ne $(($_myHeight - 1)) ]]; then
+					checkCells "$(($1 - 1))" "$(($2 + 1))"
+				fi
+				if [[ $1 -ne $(($_myWidth - 1 )) && $2 -ne 0 ]]; then
+					checkCells "$(($1 + 1))" "$(($2 - 1))"
+				fi
+				if [[ $1 -ne $(($_myWidth - 1 )) && $2 -ne $(($_myHeight - 1)) ]]; then
+					checkCells "$(($1 + 1))" "$(($2 + 1))"
 				fi
 			fi
 		fi
