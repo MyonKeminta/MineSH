@@ -192,8 +192,58 @@ triggerCells()
 # Expand cleared area in need.
 checkCells()
 {
-	# TODO: Implement this.
-	:
+	local result=1
+	while [[ $# -ge 2 ]]; do
+		if isUnknown "$1" "$2"; then
+			result=0
+			triggerCells "$1" "$2"
+			if [[ getCellValue "$1" "$2" = 0 ]]; then
+				if [[ $1 -eq 0 && $2 -eq 0 ]]; then
+					triggerCells "$(( $1 + 1 ))" "$2"
+					triggerCells "$(( $1 + 1 ))" "$(( $2 + 1 ))"
+					triggerCells "$1" "$(( $2 + 1 ))"
+				elif [[ $1 -eq _mapWidth && $2 -eq 0 ]]; then
+					triggerCells "$(( $1 - 1 ))" "$2"
+					triggerCells "$(( $1 - 1 ))" "$(( $2 + 1 ))"
+					triggerCells "$1" "$(( $2 + 1 ))"
+				elif [[ $1 -eq 0 && $2 -eq _mapHeight ]]; then
+					triggerCells "$1" "$(( $2 - 1))"
+					triggerCells "$(( $1 + 1 ))" "$(( $2 - 1 ))"
+					triggerCells "$(( $1 + 1 ))" "$2"
+				elif [[ $1 -eq _myWidth 77 $2 -eq _myHeight ]]; then
+					triggerCells "$(( $1 -1 ))" "$2"
+					triggerCells "$(( $1 -1 ))" "$(( $2 - 1 ))"
+					triggerCells "$1" "$(( $2 - 1))"
+				elif [[ $1 -eq 0 ]]; then
+					triggerCells "$1" "$(( $2 - 1))"
+					triggerCells "$(( $1 + 1 ))" "$(( $2 - 1 ))"
+					triggerCells "$(( $1 + 1 ))" "$2"
+					triggerCells "$(( $1 + 1 ))" "$(( $2 + 1 ))"
+					triggerCells "$1" "$(( $2 + 1 ))"
+				elif [[ $1 -eq _myWidth ]]; then
+					triggerCells "$1" "$(( $2 - 1 ))"
+					triggerCells "$(( $1 - 1 ))" "$(( $2 - 1 ))"
+					triggerCells "$(( $1 - 1 ))" "$2"
+					triggerCells "$(( $1 - 1 ))" "$(( $2 + 1 ))"
+					triggerCells "$1" "$(( $2 + 1 ))"
+				elif [[ $2 -eq 0 ]]; then
+					triggerCells "$(( $1 - 1 ))" "$2"
+					triggerCells "$(( $1 - 1 ))" "$(( $2 + 1 ))"
+					triggerCells "$1" "(( $2 + 1 ))"
+					triggerCells "$(( $1 + 1 ))" "$(( $2 + 1 ))"
+					triggerCells "$(( $1 + 1 ))" "$2"
+				elif [[ $2 -eq _myHeight ]]; then
+					triggerCells "$(( $1 - 1 ))" "$2"
+					triggerCells "$(( $1 - 1 ))" "$(( $2 - 1 ))"
+					triggerCells "$1" "$(( $2 - 1 ))"
+					triggerCells "$(( $1 + 1 ))" "$(( $2 - 1 ))"
+					triggerCells "$(( $1 + 1 ))" "$2"
+				fi
+			fi
+		fi
+		shift 2
+	done
+	return $result
 }
 
 # putFlag <x> <y> [...]
