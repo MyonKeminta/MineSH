@@ -197,7 +197,7 @@ checkCells()
 		if isUnknown "$1" "$2"; then
 			result=0
 			triggerCells "$1" "$2"
-			if [[ getCellValue "$1" "$2" = 0 ]]; then
+			if [[ $(getCellValue "$1" "$2") = 0 ]]; then
 				if [[ $1 -ne 0 ]]; then
 					checkCells "$(($1 - 1))" "$2"
 				fi
