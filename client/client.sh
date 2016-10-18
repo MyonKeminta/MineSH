@@ -507,7 +507,6 @@ refreshScreen()
 
 	for (( i = rowBegin; i < rowEnd; i++ )); do
 		tput cup $i 0
-		echo -n "$CLR_EOL"
 		index=$(getIndexByCell $cameraX $((cameraY+i)))
 		for (( j = cameraX; j < cameraX+cameraWidth; ++j )); do
 			if [[ $j -lt 0 ]]; then
@@ -530,6 +529,7 @@ refreshScreen()
 				$PUTCELL $index
 			fi
 		fi
+		echo -n "$CLR_EOL"
 	done
 	$PUTSELECTION $selectionX $selectionY
 
