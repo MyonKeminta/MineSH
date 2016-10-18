@@ -2,26 +2,30 @@
 
 
 # Descriptor &3, &4: reserved for temporary use
-# Descriptor &6: for tcp connection
+# Descriptor &6: process queue
+# Descriptor &7: TCP connection. Do not read directly from &7.
 
 
 readonly MINESH_VERSION="v0.1a"
 readonly serverConfirmMsg="MineSH-server ${MINESH_VERSION}"
 readonly clientConfirmMsg="MineSH-client ${MINESH_VERSION}"
 readonly dialogTitle="MineSH ${MINESH_VERSION}"
+export readonly pipePath="/dev/shm/minesh-client-${USER}-$$"
 
-declare -i mapWidth mapHeight
-declare -a theMap
-declare -i cameraX cameraY
-declare -i cameraWidth cameraHeight
-declare -i selectionX selectionY
-declare fix_x fix_y
-declare isScreenWidthEven
+declare -ix mapWidth mapHeight
+declare -ax theMap
+declare -ix cameraX cameraY
+declare -ix cameraWidth cameraHeight
+declare -ix selectionX selectionY
+declare -x fix_x fix_y
+declare -x isScreenWidthEven
 
 
-declare waitingForResize
+declare -x waitingForResize
 
-declare receiveLoopPid
+declare -x receiveLoopPid
+declare -x networkLoopPid
+declare -x mainPid
 
 readonly NULL=1
 readonly UNKNOWN=2
@@ -30,52 +34,75 @@ readonly GUEST=4
 readonly LOGEDIN=5
 readonly DISCONNECTED=-1
 readonly FAILED=-2
-gameState=$NULL
+export gameState=$NULL
 
 
-declare PUTGAP
-declare PUTCELL
-declare PUTSELECTION
+declare -x PUTGAP
+declare -x PUTCELL
+declare -x PUTSELECTION
 
-declare -r RESET_COLOR=$(tput sgr0)
+declare -rx RESET_COLOR=$(tput sgr0)
+
+
+declare -x COLOR_CONFIG
 
 # Mono color
-declare -r UNCLR1=$(tput rev)
+declare -rx UNCLR1=$(tput rev)
 
 # 8 color
-declare -r NUM8=$(tput setaf 2)
-declare -r UNCLR8=$(tput setab 6)
-declare -r BOMBED8=$(tput setaf 1; tput rev)
-declare -r FLAGGED8=$(tput setaf 3; tput rev)
+declare -rx NUM8=$(tput setaf 2)
+declare -rx UNCLR8=$(tput setab 6)
+declare -rx BOMBED8=$(tput setaf 1; tput rev)
+declare -rx FLAGGED8=$(tput setaf 3; tput rev)
 
 # 256 color
-declare -ra NUM256=("" \
+declare -rax NUM256=("" \
 $(tput setaf 46) \
 $(tput setaf 51) \
-$(tput setaf 16) \
+$(tput setaf 21) \
 $(tput setaf 57) \
 $(tput setaf 165) \
 $(tput setaf 201) \
 $(tput setaf 208) \
 $(tput setaf 196) )
-declare -r UNCLR256=$(tput setab 6)
-declare -r BOMBED256=$(tput setaf 196; tput rev)
-declare -r FLAGGED256=$(tput setaf 190; tput rev)
+declare -rx UNCLR256=$(tput setab 75)
+declare -rx BOMBED256=$(tput setaf 196; tput rev)
+declare -rx FLAGGED256=$(tput setaf 190; tput rev)
+
+declare -rx CLR_EOL=$(tput el)
+
+declare -rx ESC=$(echo -en "\E")
+
+
+declare -i scrollCount=0
+
 
 
 onStopped()
 {
-	exec 6<&- 6>&-
+	exec 6<&- 6>&- 7<&- 7>&-
+	rm "$pipePath"
+	tput clear
+	tput cvvis
 }
 
 onStoppedByServer()
 {
+	if [[ -n "$exited" ]]; then
+		return 0
+	fi
+	exited=1
 	onStopped
 }
 
 onStoppedByUser()
 {
-	kill $receiveLoopPid
+	if [[ -n "$exited" ]]; then
+		return 0
+	fi
+	exited=1
+	[[ -n "$receiveLoopPid" ]] && kill $receiveLoopPid
+	[[ -n "$networkLoopPid" ]] && kill $networkLoopPid
 	onStopped
 }
 
@@ -117,7 +144,9 @@ mapToScreenY()
 	echo $(($1 - cameraY))
 }
 
-# _putGap1|_putGap8|_putGap256 <x> <y>
+
+# _putGap1|_putGap8|_putGap256 <index>
+# DEPRECATED: _putGap1|_putGap8|_putGap256 <x> <y>
 # x: [0, w]
 # Print the gap on the left of given cell.
 _putGap1()
@@ -127,10 +156,13 @@ _putGap1()
 		return 0
 	fi
 
-	local l=${theMap[$(getIndexByCell $(($1-1)) $2)]}
-	local r=${theMap[$(getIndexByCell $1 $2)]}
+	# local l=${theMap[$(getIndexByCell $(($1-1)) $2)]}
+	# local r=${theMap[$(getIndexByCell $1 $2)]}
+	local l=${theMap[$(($1-1))]}
+	local r=${theMap[$1]}
 
-	if grep -q -E "[0-8]" <<< "$l$r"; then
+	# if grep -q -E "[0-8]" <<< "$l$r"; then
+	if [[ $l = [0-8] || $r = [0-8] ]]; then
 		echo -n ' '
 		return 0
 	fi
@@ -145,10 +177,13 @@ _putGap8()
 		return 0
 	fi
 
-	local l=${theMap[$(getIndexByCell $(($1-1)) $2)]}
-	local r=${theMap[$(getIndexByCell $1 $2)]}
+	# local l=${theMap[$(getIndexByCell $(($1-1)) $2)]}
+	# local r=${theMap[$(getIndexByCell $1 $2)]}
+	local l=${theMap[$(($1-1))]}
+	local r=${theMap[$1]}
 
-	if grep -q -E "[0-8]" <<< "$l$r"; then
+	# if grep -q -E "[0-8]" <<< "$l$r"; then
+	if [[ $l = [0-8] || $r = [0-8] ]]; then
 		echo -n ' '
 	elif [[ $l = '.' || $r = '.' ]]; then
 		echo -n "${UNCLR8} ${RESET_COLOR}"
@@ -166,10 +201,13 @@ _putGap256()
 		return 0
 	fi
 
-	local l=${theMap[$(getIndexByCell $(($1-1)) $2)]}
-	local r=${theMap[$(getIndexByCell $1 $2)]}
+	# local l=${theMap[$(getIndexByCell $(($1-1)) $2)]}
+	# local r=${theMap[$(getIndexByCell $1 $2)]}
+	local l=${theMap[$(($1-1))]}
+	local r=${theMap[$1]}
 
-	if grep -q -E "[0-8]" <<< "$l$r"; then
+	# if grep -q -E "[0-8]" <<< "$l$r"; then
+	if [[ $l = [0-8] || $r = [0-8] ]]; then
 		echo -n ' '
 	elif [[ $l = '.' || $r = '.' ]]; then
 		echo -n "${UNCLR256} ${RESET_COLOR}"
@@ -180,11 +218,13 @@ _putGap256()
 	fi
 }
 
-# _putCell1|_putCell8|_putCell256 <x> <y>
+# _putCell1|_putCell8|_putCell256 <index>
+# DEPRECATED: _putCell1|_putCell8|_putCell256 <x> <y>
 # Print the given cell value.
 _putCell1()
 {
-	local value=${map[$(getIndexByCell $1 $2)]}
+	# local value=${theMap[$(getIndexByCell $1 $2)]}
+	local value=${theMap[$1]}
 	case $value in
 		0 )
 			echo -n ' '
@@ -206,7 +246,8 @@ _putCell1()
 
 _putCell8()
 {
-	local value=${map[$(getIndexByCell $1 $2)]}
+	# local value=${theMap[$(getIndexByCell $1 $2)]}
+	local value=${theMap[$1]}
 	case $value in
 		0 )
 			echo -n ' '
@@ -228,7 +269,8 @@ _putCell8()
 
 _putCell256()
 {
-	local value=${map[$(getIndexByCell $1 $2)]}
+	# local value=${theMap[$(getIndexByCell $1 $2)]}
+	local value=${theMap[$1]}
 	case $value in
 		0 )
 			echo -n ' '
@@ -260,20 +302,6 @@ _putSelection1()
 		return 1
 	fi
 
-	tput cup $y $((x*2))
-	if [[ $1 -le 0 ]]; then
-		echo -n '['
-	else
-		local l=${theMap[$(getIndexByCell $(($1-1)) $2)]}
-		local r=${theMap[$(getIndexByCell $1 $2)]}
-
-		if grep -q -E "[0-8]" <<< "$l$r"; then
-			echo -n '['
-		else
-			echo -n "${UNCLR1}[${RESET_COLOR}"
-		fi
-	fi
-
 	tput cup $y $((x*2+2))
 	if [[ $1 -gt $mapWidth ]]; then
 		echo -n ']'
@@ -287,6 +315,21 @@ _putSelection1()
 			echo -n "${UNCLR1}]${RESET_COLOR}"
 		fi
 	fi
+
+	tput cup $y $((x*2))
+	if [[ $1 -le 0 ]]; then
+		echo -n '['
+	else
+		local l=${theMap[$(getIndexByCell $(($1-1)) $2)]}
+		local r=${theMap[$(getIndexByCell $1 $2)]}
+
+		if grep -q -E "[0-8]" <<< "$l$r"; then
+			echo -n '['
+		else
+			echo -n "${UNCLR1}[${RESET_COLOR}"
+		fi
+	fi
+	tput cup $cameraHeight 0
 }
 
 _putSelection8()
@@ -295,6 +338,24 @@ _putSelection8()
 	local y=$(mapToScreenY $2)
 	if [[ $x -lt 0 || $x -ge $cameraWidth || $y -lt 0 || $y -ge $cameraHeight ]]; then
 		return 1
+	fi
+
+	tput cup $y $((x*2+2))
+	if [[ $1 -gt $mapWidth ]]; then
+		echo -n ']'
+	else
+		local l=${theMap[$(getIndexByCell $1 $2)]}
+		local r=${theMap[$(getIndexByCell $(($1+1)) $2)]}
+
+		if grep -q -E "[0-8]" <<< "$l$r"; then
+			echo -n ']'
+		elif [[ $l = '.' || $r = '.' ]]; then
+			echo -n "${UNCLR8}]${RESET_COLOR}"
+		elif [[ $l = '!' || $r = '!' ]]; then
+			echo -n "${FLAGGED8}]${RESET_COLOR}"
+		else
+			echo -n "${BOMBED8}]${RESET_COLOR}"
+		fi
 	fi
 
 	tput cup $y $((x*2))
@@ -315,6 +376,17 @@ _putSelection8()
 		fi
 	fi
 
+	tput cup $cameraHeight 0
+}
+
+_putSelection256()
+{
+	local x=$(mapToScreenX $1)
+	local y=$(mapToScreenY $2)
+	if [[ $x -lt 0 || $x -ge $cameraWidth || $y -lt 0 || $y -ge $cameraHeight ]]; then
+		return 1
+	fi
+
 	tput cup $y $((x*2+2))
 	if [[ $1 -gt $mapWidth ]]; then
 		echo -n ']'
@@ -325,21 +397,12 @@ _putSelection8()
 		if grep -q -E "[0-8]" <<< "$l$r"; then
 			echo -n ']'
 		elif [[ $l = '.' || $r = '.' ]]; then
-			echo -n "${UNCLR8}]${RESET_COLOR}"
+			echo -n "${UNCLR256}]${RESET_COLOR}"
 		elif [[ $l = '!' || $r = '!' ]]; then
-			echo -n "${FLAGGED8}]${RESET_COLOR}"
+			echo -n "${FLAGGED256}]${RESET_COLOR}"
 		else
-			echo -n "${BOMBED8}]${RESET_COLOR}"
+			echo -n "${BOMBED256}]${RESET_COLOR}"
 		fi
-	fi
-}
-
-_putSelection256()
-{
-	local x=$(mapToScreenX $1)
-	local y=$(mapToScreenY $2)
-	if [[ $x -lt 0 || $x -ge $cameraWidth || $y -lt 0 || $y -ge $cameraHeight ]]; then
-		return 1
 	fi
 
 	tput cup $y $((x*2))
@@ -360,23 +423,7 @@ _putSelection256()
 		fi
 	fi
 
-	tput cup $y $((x*2+2))
-	if [[ $1 -gt $mapWidth ]]; then
-		echo -n ']'
-	else
-		local l=${theMap[$(getIndexByCell $1 $2)]}
-		local r=${theMap[$(getIndexByCell $(($1+1)) $2)]}
-
-		if grep -q -E "[0-8]" <<< "$l$r"; then
-			echo -n ']'
-		elif [[ $l = '.' || $r = '.' ]]; then
-			echo -n "${UNCLR256}]${RESET_COLOR}"
-		elif [[ $l = '!' || $r = '!' ]]; then
-			echo -n "${FLAGGED256}]${RESET_COLOR}"
-		else
-			echo -n "${BOMBED256}]${RESET_COLOR}"
-		fi
-	fi
+	tput cup $cameraHeight 0
 }
 
 # setColorConfig <1|8|256>
@@ -384,21 +431,24 @@ setColorConfig()
 {
 	case $1 in
 		1 )
-			PUTGAP=_putGap1
-			PUTCELL=_putCell1
-			PUTSELECTION=_putSelection1
+			export COLOR_CONFIG=1
+			export PUTGAP=_putGap1
+			export PUTCELL=_putCell1
+			export PUTSELECTION=_putSelection1
 			;;
 
 		8 )
-			PUTGAP=_putGap8
-			PUTCELL=_putCell8
-			PUTSELECTION=_putSelection8
+			export COLOR_CONFIG=8
+			export PUTGAP=_putGap8
+			export PUTCELL=_putCell8
+			export PUTSELECTION=_putSelection8
 			;;
 
 		256 )
-			PUTGAP=_putGap256
-			PUTCELL=_putCell256
-			PUTSELECTION=_putSelection256
+			export COLOR_CONFIG=256
+			export PUTGAP=_putGap256
+			export PUTCELL=_putCell256
+			export PUTSELECTION=_putSelection256
 			;;
 
 		* )
@@ -409,10 +459,10 @@ setColorConfig()
 
 sendUpdateMapRequest()
 {
-	local x=$((cameraX-5))
-	local y=$((cameraY-5))
-	local w=$((cameraWidth+10))
-	local h=$((cameraHeight+10))
+	local x=$((cameraX-10))
+	local y=$((cameraY-10))
+	local w=$((cameraWidth+20))
+	local h=$((cameraHeight+20))
 	if [[ $x -lt 0 ]]; then
 		((w+=x))
 		x=0
@@ -428,7 +478,7 @@ sendUpdateMapRequest()
 		h=$((mapHeight-y))
 	fi
 
-	echo "Get $x $y $w $h" >&6
+	echo "Get $x $y $w $h" >&7
 }
 
 # getRand <min> <max>
@@ -441,10 +491,11 @@ getRand()
 
 refreshScreen()
 {
-	tput clear
+	# tput clear
 
 	local rowBegin rowEnd
 	# local colBegin colEnd
+	local index
 	if [[ $cameraHeight -gt $mapHeight ]]; then
 		rowBegin=$(((cameraHeight - mapHeight)/2))
 		rowEnd=$((rowBegin + mapHeight))
@@ -453,48 +504,60 @@ refreshScreen()
 		rowEnd=$cameraHeight
 	fi
 
+
 	for (( i = rowBegin; i < rowEnd; i++ )); do
 		tput cup $i 0
+		echo -n "$CLR_EOL"
+		index=$(getIndexByCell $cameraX $((cameraY+i)))
 		for (( j = cameraX; j < cameraX+cameraWidth; ++j )); do
 			if [[ $j -lt 0 ]]; then
 				echo -n '  '
 			elif [[ $j -ge $mapWidth ]]; then
 				break
 			else
-				$PUTGAP $j $((cameraY+i))
-				$PUTCELL $j $((cameraY+i))
+				# $PUTGAP $j $((cameraY+i))
+				# $PUTCELL $j $((cameraY+i))
+				$PUTGAP $index
+				$PUTCELL $index
 			fi
+			(( ++index ))
 		done
 		if [[ $((cameraX+cameraWidth)) -lt $mapWidth ]]; then
-			$PUTGAP $((cameraX+cameraWidth)) $((cameraY+i))
+			# $PUTGAP $((cameraX+cameraWidth)) $((cameraY+i))
+			$PUTGAP $index
 			if [[ $((COLUMNS%2)) -eq 0 ]]; then
-				$PUTCELL $((cameraX+cameraWidth)) $((cameraY+i))
+				# $PUTCELL $((cameraX+cameraWidth)) $((cameraY+i))
+				$PUTCELL $index
 			fi
 		fi
 	done
 	$PUTSELECTION $selectionX $selectionY
+
+	# for (( i = 0; i < mapWidth*mapHeight; i++ )); do
+	# 	echo -n "${theMap[$i]} "
+	# done > b
 }
 
 initMapPosition()
 {
 	eval $(resize)
 
-	cameraHeight=$((LINES-1))
-	cameraWidth=$(((COLUMNS-1)/2))
+	export cameraHeight=$((LINES-1))
+	export cameraWidth=$(((COLUMNS-1)/2))
 
 	if [[ $cameraWidth -ge $mapWidth ]]; then
-		fix_x=1
-		cameraX=$((-(mapWidth - cameraWidth)/2))
+		export fix_x=1
+		export cameraX=$((-(mapWidth - cameraWidth)/2))
 	else
-		fix_x=""
-		cameraX=$(getRand 0 $((mapWidth - cameraWidth)))
+		export fix_x=""
+		export cameraX=$(getRand 0 $((mapWidth - cameraWidth)))
 	fi
 	if [[ $cameraHeight -ge $mapHeight ]]; then
-		fix_y=1
-		cameraY=$((-(mapHeight - cameraHeight)/2))
+		export fix_y=1
+		export cameraY=$((-(mapHeight - cameraHeight)/2))
 	else
-		fix_y=""
-		cameraY=$(getRand 0 $((mapHeight - cameraHeight)))
+		export fix_y=""
+		export cameraY=$(getRand 0 $((mapHeight - cameraHeight)))
 	fi
 }
 
@@ -502,13 +565,52 @@ initMapPosition()
 
 cellDeselect()
 {
-	:
+	local x=$(((selectionX - cameraX)*2))
+	local y=$((selectionY - cameraY))
+	tput cup $y $x
+	$PUTGAP $(getIndexByCell $selectionX $selectionY)
+	tput cup $y $((x+2))
+	$PUTGAP $(getIndexByCell $((selectionX+1)) $selectionY)
 }
 
 # cellSelect <x> <y>
 cellSelect()
 {
-	:
+	selectionX="$1"
+	selectionY="$2"
+	[[ $selectionX -lt 0 ]] && selectionX=0
+	[[ $selectionY -lt 0 ]] && selectionY=0
+	[[ $selectionX -ge $mapWidth ]] && selectionX=$(($mapWidth-1))
+	[[ $selectionY -ge $mapHeight ]] && selectionY=$(($mapHeight-1))
+	local toRefresh=''
+	if [[ -z $fix_x ]]; then
+		if [[ $cameraX -gt $selectionX ]]; then
+			((scrollCount += cameraX - selectionX))
+			cameraX=$selectionX
+			toRefresh=1
+		elif [[ $cameraX -le $((selectionX - cameraWidth)) ]]; then
+			((scrollCount += selectionX - cameraWidth + 1 - cameraX))
+			cameraX=$((selectionX-cameraWidth+1))
+			toRefresh=1
+		fi
+	fi
+	if [[ -z $fix_y ]]; then
+		if [[ $cameraY -gt $selectionY ]]; then
+			((scrollCount += cameraY - selectionY))
+			cameraY=$selectionY
+			toRefresh=1
+		elif [[ $cameraY -le $((selectionY - cameraHeight)) ]]; then
+			((scrollCount += selectionY - cameraHeight + 1 - cameraY))
+			cameraY=$((selectionY-cameraHeight+1))
+			toRefresh=1
+		fi
+	fi
+	if [[ -n $toRefresh ]]; then
+		[[ ${scrollCount} -ge 9 ]] && { scrollCount=0; sendUpdateMapRequest; }
+		refreshScreen
+	fi
+
+	$PUTSELECTION $selectionX $selectionY
 }
 
 # # cellSelectionMove <up|down|left|right>
@@ -524,33 +626,173 @@ onResized()
 }
 
 
+localMsgHandler()
+{
+	if [[ $1 = "usercmd" ]]; then
+		shift
+# 		if grep -q -E "(^exit$)|(^ *(move|screen)(left|right|up|down) *[0-9]* *$)|\
+# ("; then
+# 			#statements
+# 		fi
+	fi
+
+	case $1 in
+		moveleft )
+			cellDeselect
+			cellSelect $((selectionX-$2)) $selectionY
+			;;
+
+		moveright )
+			cellDeselect
+			cellSelect $((selectionX+$2)) $selectionY
+			;;
+
+		moveup )
+			cellDeselect
+			cellSelect $selectionX $((selectionY-$2))
+			;;
+
+		movedown )
+			cellDeselect
+			cellSelect $selectionX $((selectionY+$2))
+			;;
+
+		select )
+			cellDeselect
+			cellSelect "$2" "$3"
+			;;
+
+		screenleft )
+			if [[ -z $fix_x ]]; then
+				((cameraX-=$2))
+				[[ $cameraX -lt 0 ]] && cameraX=0
+				[[ $selectionX -ge $((cameraX + cameraWidth)) ]] && selectionX=$((cameraX + cameraWidth - 1))
+				refreshScreen
+				((scrollCount+=$2))
+				if [[ $scrollCount -ge 9 ]]; then
+					scrollCount=0
+					sendUpdateMapRequest
+				fi
+			fi
+			;;
+
+		screenright )
+			if [[ -z $fix_x ]]; then
+				((cameraX+=$2))
+				[[ $cameraX -gt $((mapWidth - cameraWidth)) ]] && cameraX=$((mapWidth - cameraWidth))
+				[[ $selectionX -lt $cameraX ]] && selectionX=$cameraX
+				refreshScreen
+				((scrollCount+=$2))
+				if [[ $scrollCount -ge 9 ]]; then
+					scrollCount=0
+					sendUpdateMapRequest
+				fi
+			fi
+			;;
+
+		screenup )
+			if [[ -z $fix_y ]]; then
+				((cameraY-=$2))
+				[[ $cameraY -lt 0 ]] && cameraY=0
+				[[ $selectionY -ge $((cameraY + cameraHeight)) ]] && selectionY=$((cameraY + cameraHeight - 1))
+				refreshScreen
+				((scrollCount+=$2))
+				if [[ $scrollCount -ge 9 ]]; then
+					scrollCount=0
+					sendUpdateMapRequest
+				fi
+			fi
+			;;
+
+		screendown )
+			if [[ -z $fix_y ]]; then
+				((cameraY+=$2))
+				[[ $cameraY -gt $((mapHeight - cameraHeight)) ]] && cameraY=$((mapHeight - cameraHeight))
+				[[ $selectionY -lt $cameraY ]] && selectionY=$cameraY
+				refreshScreen
+				((scrollCount+=$2))
+				if [[ $scrollCount -ge 9 ]]; then
+					scrollCount=0
+					sendUpdateMapRequest
+				fi
+			fi
+			;;
+
+		check )
+			if [[ ${theMap[$(getIndexByCell $selectionX $selectionY)]} = '.' ]]; then
+				echo "Check $selectionX $selectionY" >&7
+			fi
+			;;
+
+		flag )
+			if [[ ${theMap[$(getIndexByCell $selectionX $selectionY)]} = '.' ]]; then
+				echo "Flag $selectionX $selectionY" >&7
+			fi
+			;;
+
+		autocheck )
+			# TODO: implement this.
+			;;
+
+		# command )
+		# 	;;
+
+		kill )
+			kill $mainPid
+			;;
+
+		* )
+			tput cup $cameraHeight 0
+			[[ "$COLOR_CONFIG" != '1' ]] && tput setaf 1
+			tput rev
+			tput el
+			echo -n "ERROR: $* No such command." >&2
+			tput cup $cameraHeight 0
+			tput sgr0
+	esac
+}
+
 receiveLoop()
 {
 	local response
 	local responseHead
 	local responseBody
 	local x y w h
+	local dataIndex
+	local mapIndex
+
+	for (( i = 0; i < $mapWidth*$mapHeight; i++ )); do
+		theMap[$i]='.'
+	done
+
+	cellSelect $((cameraX+cameraWidth/2)) $((cameraY+cameraHeight/2))
+
 
 	while true; do
 		read response <&6
-		responseHead=$(cut -d ' ' -f 1 <<< response)
-		responseBody=$(cut -d ' ' -f 2- <<< response)
-		responseBody=($responseBody)
-
+		# echo $response >> a
+		responseHead=$(cut -d ' ' -f 1 <<< "$response")
+		responseBody=$(cut -d ' ' -f 2- <<< "$response")
+		# responseBody=($responseBody)
 		case $responseHead in
 			Disconnect )
+				kill $mainPid
 				exit 0
 				;;
 
 			Map )
-				x=$(cut -d ' ' -f 1 <<< responseBody)
-				y=$(cut -d ' ' -f 2 <<< responseBody)
-				w=$(cut -d ' ' -f 3 <<< responseBody)
-				h=$(cut -d ' ' -f 4 <<< responseBody)
-				responseBody=( $(cut -d ' ' -f 5- <<< responseBody) )
+				x=$(cut -d ' ' -f 1 <<< "$responseBody")
+				y=$(cut -d ' ' -f 2 <<< "$responseBody")
+				w=$(cut -d ' ' -f 3 <<< "$responseBody")
+				h=$(cut -d ' ' -f 4 <<< "$responseBody")
+				responseBody=$(cut -d ' ' -f 5- <<< "$responseBody")
+				responseBody=($responseBody)
+				# echo "$x $y $w $h $responseBody" >> a
+				dataIndex=0
 				for (( i = 0; i < h; i++ )); do
+					mapIndex=$(getIndexByCell $x $((y+i)))
 					for (( j = 0; j < w; j++ )); do
-						map[$(getIndexByCell $((x+j)) $((y+i)))]=responseBody[$((i*w+j))]
+						theMap[$((mapIndex++))]=${responseBody[$((dataIndex++))]}
 					done
 				done
 				refreshScreen
@@ -559,16 +801,185 @@ receiveLoop()
 			Changed )
 				sendUpdateMapRequest
 				;;
+
+			_Local )
+				localMsgHandler $responseBody
+				;;
 		esac
 	done
 }
 
-mainLoop()
+userInputLoop()
 {
 	local input
+	local tempchar
+	IFS='#'
 	while true; do
 		read -n 1 -s input
+		if [[ "$input" = "$ESC" ]]; then
+			while read -t 0.005 -s -n 1 tempchar; do
+				input="$input$tempchar"
+			done
+		fi
 
+		case $input in
+			' ' )
+				echo "_Local autocheck" >&6
+				;;
+
+			z|Z )
+				echo "_Local check" >&6
+				;;
+
+			x|X )
+				echo "_Local flag" >&6
+				;;
+
+			q|Q|"$ESC" )
+				tput cup $cameraHeight 0
+				if [[ "$COLOR_CONFIG" = '1' ]]; then
+					tput rev
+				else
+					tput setab 3
+					tput setaf 0
+				fi
+				tput el
+				tput cvvis
+				echo -n "Are you sure want to exit? [y/n]: "
+				read -s -n 1 input
+				if [[ "$input" = 'y' || "$input" = 'Y' ]]; then
+					tput sgr0
+					exit 0
+				elif [[ "$input" = "$ESC" ]]; then
+					# Flush
+					while read -s -n 1 -t 0.005; do
+						:
+					done
+				fi
+
+				tput cup $cameraHeight 0
+				tput civis
+				tput sgr0
+				tput el
+				;;
+
+			"$ESC[A" )
+				# Up arrow
+				echo "_Local moveup 1" >&6
+				;;
+
+			"$ESC[B" )
+				# Down arrow
+				echo "_Local movedown 1" >&6
+				;;
+
+			"$ESC[C" )
+				# Right arrow
+				echo "_Local moveright 1" >&6
+				;;
+
+			"$ESC[D" )
+				# Left arrow
+				echo "_Local moveleft 1" >&6
+				;;
+
+			"$ESC[1;5A" )
+				# Ctrl+Up
+				echo "_Local screenup 2" >&6
+				;;
+
+			"$ESC[1;5B" )
+				# Ctrl+Down
+				echo "_Local screendown 2" >&6
+				;;
+
+			"$ESC[1;5C" )
+				# Ctrl+Right
+				echo "_Local screenright 2" >&6
+				;;
+
+			"$ESC[1;5D" )
+				# Ctrl+Left
+				echo "_Local screenleft 2" >&6
+				;;
+
+			"$ESC[1;2A" )
+				# Shift+Up
+				echo "_Local moveup 5" >&6
+				;;
+
+			"$ESC[1;2B" )
+				# Shift+Down
+				echo "_Local movedown 5" >&6
+				;;
+
+			"$ESC[1;2C" )
+				# Shift+Right
+				echo "_Local moveright 5" >&6
+				;;
+
+			"$ESC[1;2D" )
+				# Shift+Left
+				echo "_Local moveleft 5" >&6
+				;;
+
+			"$ESC[1;3A" )
+				# Alt+Up
+				echo "_Local screenup $((cameraHeight/2))" >&6
+				;;
+
+			"$ESC[1;3B" )
+				# Alt+Down
+				echo "_Local screendown $((cameraHeight/2))" >&6
+				;;
+
+			"$ESC[1;3C" )
+				# Alt+Right
+				echo "_Local screenright $((cameraWidth/2))" >&6
+				;;
+
+			"$ESC[1;3D" )
+				# Alt+Left
+				echo "_Local screenleft $((cameraWidth/2))" >&6
+				;;
+
+			":" )
+				tput cup $cameraHeight 0
+				if [[ "$COLOR_CONFIG" = '1' ]]; then
+					tput rev
+				else
+					tput setab 2
+					tput setaf 0
+				fi
+				tput el
+				tput cvvis
+				local confirmed=''
+				local charTmp
+				input=''
+				echo -n ': '
+				while read -s -n 1 charTmp; do
+					if [[ "$charTmp" = '' ]]; then
+						confirmed=1
+						break
+					fi
+					if [[ "$charTmp" = "$ESC" ]]; then
+						# Flush
+						while read -s -n 1 -t 0.005; do
+							:
+						done
+						break
+					fi
+					echo -n "$charTmp"
+					input="${input}${charTmp}"
+				done
+				tput sgr0
+				tput civis
+				tput cup $cameraHeight 0
+				tput el
+				[[ -n $confirmed ]] && echo "_Local usercmd $input" >&6
+				;;
+			
+		esac
 	done
 }
 
@@ -580,17 +991,25 @@ connectToServer()
 		return 1
 	fi
 	echo "Connecting to [${1}:${2}]..."
-	exec 6<>"/dev/tcp/${1}/${2}"
+	exec 7<>"/dev/tcp/${1}/${2}"
 	local result=$?
 	if [[ $result -ne 0 ]]; then
-		echo "Failed connecting to [${1}:${2}]."
+		echo "Failed connecting to [${1}:${2}]." >&2
 		return $result
 	fi
 	unset result
 
 	gameState=$UNKNOWN
 
-	echo "${clientConfirmMsg}" >&6
+	# cat <&7 >&6 &
+	local msg
+	while true; do
+		read msg <&7
+		echo "$msg" >&6
+	done &
+	networkLoopPid=$!
+
+	echo "${clientConfirmMsg}" >&7
 	read serverInfo <&6
 	if [[ $serverInfo != $serverConfirmMsg ]]; then
 		exec 6>&- 6<&-
@@ -603,7 +1022,7 @@ connectToServer()
 
 enterAsGuest()
 {
-	echo "Guest" >&6
+	echo "Guest" >&7
 	local response
 	read response <&6
 	response=($response)
@@ -629,20 +1048,17 @@ runGame()
 {
 	echo "Please Wait..." >&2
 
-	for (( i = 0; i < $mapWidth*$mapHeight; i++ )); do
-		map[$i]='.'
-	done
+	initMapPosition
 
+	tput civis
 	receiveLoop &
 	receiveLoopPid=$!
 
-	initMapPosition
-
 	sendUpdateMapRequest
 
-	cellSelect $((cameraX+cameraWidth/2)) $((cameraY+cameraHeight/2))
+	# cellSelect $((cameraX+cameraWidth/2)) $((cameraY+cameraHeight/2))
 
-	mainLoop
+	userInputLoop
 }
 
 
@@ -651,6 +1067,7 @@ interactiveMode()
 	local tip1="Please enter the server you want to connect to."
 	local tip2="(Example: www.abc.com:2333 or 127.0.0.1:65535)"
 	local server
+	# read
 	server=$(dialog --title "${dialogTitle}" --inputbox "${tip1}\n\n${tip2}" 10 55 3>&1 1>&2 2>&3)
 
 	if [[ $? -ne 0 ]]; then
@@ -689,7 +1106,7 @@ interactiveMode()
 					clear
 				else
 					runGame
-					break
+					return $?
 				fi
 				;;
 
@@ -706,6 +1123,25 @@ runWithArgs()
 	:
 	# TODO: Finish this
 }
+
+export mainPid=$$
+
+if [[ -e "${pipePath}" ]]; then
+	echo "Unexpected error: Already running game in the current terminal." >&2
+	echo "If not, please delete \"${pipePath}\" manually and try again." >&2
+	exit 20
+fi
+
+mkfifo "${pipePath}"
+if [[ $? -ne 0 ]]; then
+	echo "Error occured on creating pipe : \"${pipePath}\"" >&2
+	exit 21
+fi
+
+exec 6<>"${pipePath}"
+trap "onStoppedByUser; exit 1" 1 2 3
+trap "onStoppedByUser" 0
+
 
 if [[ $# -eq 0 ]]; then
 	if grep -q "256color" <<< "$TERM"; then
