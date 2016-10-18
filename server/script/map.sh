@@ -169,7 +169,7 @@ getRegionState()
 	for (( i = 0; i < $4; i++ )); do
 		index=$(getIndexByCell $1 $(($2+$i)))
 		for (( j = 0; j < $3; j++ )); do
-			echo -n "${_stateMap[$((index++))} "
+			echo -n "${_stateMap[$((index++))]} "
 		done
 	done
 	echo
