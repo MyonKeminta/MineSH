@@ -165,9 +165,11 @@ getRegionState()
 {
 	local i
 	local j
+	local index
 	for (( i = 0; i < $4; i++ )); do
+		index=$(getIndexByCell $1 $(($2+$i)))
 		for (( j = 0; j < $3; j++ )); do
-			echo -n "${_stateMap[$(getIndexByCell $(($1+$j)) $(($2+$i)))]}"
+			echo -n "${_stateMap[$((index++))]} "
 		done
 	done
 	echo
@@ -192,8 +194,41 @@ triggerCells()
 # Expand cleared area in need.
 checkCells()
 {
-	# TODO: Implement this.
-	:
+	local result=1
+	while [[ $# -ge 2 ]]; do
+		if isUnknown "$1" "$2"; then
+			result=0
+			triggerCells "$1" "$2"
+			if [[ $(getCellValue "$1" "$2") = 0 ]]; then
+				if [[ $1 -ne 0 ]]; then
+					checkCells "$(($1 - 1))" "$2"
+				fi
+				if [[ $1 -ne $(($_myWidth - 1)) ]]; then
+					checkCells "$(($1 + 1))" "$2"
+				fi
+				if [[ $2 -ne 0 ]]; then
+					checkCells "$1" "$(($2 - 1))"
+				fi
+				if [[ $2 -ne $(($_myHeight - 1)) ]]; then
+					checkCells "$1" "$(($2 + 1))"
+				fi
+				if [[ $1 -ne 0 && $2 -ne 0 ]]; then
+					checkCells "$(($1 - 1))" "$(($2 - 1))"
+				fi
+				if [[ $1 -ne 0 && $2 -ne $(($_myHeight - 1)) ]]; then
+					checkCells "$(($1 - 1))" "$(($2 + 1))"
+				fi
+				if [[ $1 -ne $(($_myWidth - 1 )) && $2 -ne 0 ]]; then
+					checkCells "$(($1 + 1))" "$(($2 - 1))"
+				fi
+				if [[ $1 -ne $(($_myWidth - 1 )) && $2 -ne $(($_myHeight - 1)) ]]; then
+					checkCells "$(($1 + 1))" "$(($2 + 1))"
+				fi
+			fi
+		fi
+		shift 2
+	done
+	return $result
 }
 
 # putFlag <x> <y> [...]
