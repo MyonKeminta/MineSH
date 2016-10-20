@@ -72,6 +72,8 @@ interactiveMode()
 				;;
 
 			create )
+				loadConfig
+				saveConfig
 				echo "Please enter map args:"
 				echo "<width> <height> [--mine-rate <rate-percent>] [--block <block-width> <block-height>]"
 				read input
