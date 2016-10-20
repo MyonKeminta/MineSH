@@ -89,8 +89,8 @@ serverLoop()
 	while true; do
 		read request <&5
 
-		#Debug code
-		echoc 5 "Got request: $request"
+		# Debug code
+		# echoc 5 "Got request: $request"
 
 		if [[ $request = "Stop" ]]; then
 			for i in ${!connections[@]}; do

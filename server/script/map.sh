@@ -470,7 +470,7 @@ generateMap()
 	echo "Saving..."
 
 	if [[ ! -e "${MINESH_SVR_DATA_DIR}/map" ]]; then
-		mkdir "${MINESH_SVR_DATA_DIR}/map"
+		mkdir -p "${MINESH_SVR_DATA_DIR}/map"
 	fi
 
 	{
