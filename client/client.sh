@@ -77,13 +77,47 @@ declare -rx ESC=$(echo -en "\E")
 declare -i scrollCount=0
 
 
+readonly OPERATE_HELP_DOCUMENT="\
+[Arrow]          Move selection\n\
+[Shift+Arrow]    Move selection for 5 cells distance\n\
+[Ctrl+Arrow]     Move camera for 2 cells distance\n\
+[Alt+Arrow]      Move camera for half of the screen\n\
+\n\
+[Z]              Reveal the selected cell\n\
+[X]              Flag the selected cell\n\
+[Space]          Auto check cells around the selected cell\n\
+[Q]|[Esc]        Leave the game\
+"
+
+readonly CMD_OPTION_HELP_DOCUMENT="\
+-h | --help\n\
+	Print this help and exit.\n\
+\n\
+-s | --server  <server>\n\
+	Specify the server you want to connect to.\n\
+-g | --guest\n\
+	Enter the game as guest. (default)\n\
+\n\
+	Login function is not implemented yet.\n\
+\n\
+\n\
+-c | --color 1|8|256\n\
+	Select the color profile: 1-color, 8-color, or 256-color.\n\
+	By default, 256-color profile will be used if supported.
+	If not, 8-color will be used.\n\
+"
+
+
 
 onStopped()
 {
 	exec 6<&- 6>&- 7<&- 7>&-
 	rm "$pipePath"
-	tput clear
-	tput cvvis
+	if [[ "$gameState" -ge $GUEST ]]; then
+		gameState=$DISCONNECTED
+		tput clear
+		tput cvvis
+	fi
 }
 
 onStoppedByServer()
@@ -731,7 +765,48 @@ localMsgHandler()
 			;;
 
 		autocheck )
-			# TODO: implement this.
+			local num="${theMap[$(getIndexByCell $selectionX $selectionY)]}"
+			local temp
+			if [[ "$num" = [1-8] ]]; then
+				local unclearedList=""
+				local unclearedCount=0
+				local flaggedCount=0
+				local bombedCount=0
+				local totalCount=0
+
+				for (( i = $selectionX-1; i <= $selectionX+1; i++ )); do
+					for (( j = $selectionY-1; j <= $selectionY+1; j++ )); do
+						[[ "$i" -eq "$selectionX" && "$j" -eq "$selectionY" ]] && continue
+						[[ "$i" -lt 0 || "$i" -ge $mapWidth ]] && continue
+						[[ "$j" -lt 0 || "$j" -ge $mapHeight ]] && continue
+						case ${theMap[$(getIndexByCell $i $j)]} in
+							'.' )
+								((++totalCount))
+								((++unclearedCount))
+								unclearedList="$unclearedList $i $j"
+								;;
+
+							'!' )
+								((++totalCount))
+								((++flaggedCount))
+								;;
+
+							'9' )
+								((++totalCount))
+								((++bombedCount))
+								;;
+						esac
+					done
+				done
+
+				if [[ "$unclearedCount" -gt 0 ]]; then
+					if [[ "$num" -eq "$totalCount" ]]; then
+						echo "Flag $unclearedList" >&7
+					elif [[ "$num" -eq "$((flaggedCount+bombedCount))" ]]; then
+						echo "Check $unclearedList" >&7
+					fi
+				fi
+			fi
 			;;
 
 		# command )
@@ -1085,8 +1160,8 @@ interactiveMode()
 
 	local option
 	while true; do
-		option=$(dialog --title "${dialogTitle}" --menu "Connected successfully." 10 30 3 1 "Log in" \
-			2 "Play as guest" 3 "Register" 3>&1 1>&2 2>&3)
+		option=$(dialog --title "${dialogTitle}" --menu "Connected successfully." 11 30 4 1 "Log in" \
+			2 "Play as guest" 3 "Register" 4 "Help" 3>&1 1>&2 2>&3)
 		if [[ $? -ne 0 ]]; then
 			clear
 			echo "Exited." >&2
@@ -1114,14 +1189,79 @@ interactiveMode()
 				dialog --title "${dialogTitle}" --msgbox "Not implemented yet." 6 30
 				clear
 				;;
+
+			4 )
+				dialog --title "${dialogTitle} Help" --msgbox "$OPERATE_HELP_DOCUMENT" 20 70
+				clear
+				;;
 		esac
 	done
 }
 
 runWithArgs()
 {
-	:
-	# TODO: Finish this
+	local server
+	while [[ $# -gt 0 ]]; do
+		case $1 in
+			-h | --help )
+				echo "$clientConfirmMsg"
+				echo
+				echo -e "$CMD_OPTION_HELP_DOCUMENT"
+				echo -e "$OPERATE_HELP_DOCUMENT"
+				return 0
+				;;
+
+			-s | --server )
+				shift
+				if [[ $# -lt 1 ]]; then
+					echo "ERROR: No server address given. Exited." >&2
+					return 1
+				fi
+				server="$1"
+				;;
+
+			-g | --guest )
+				:
+				;;
+
+			-c | --color )
+				shift
+				if [[ $# -lt 1 ]]; then
+					echo "ERROR: No color profile given. Please choose one of 1, 8 and 256." >&2
+					return 1
+				fi
+				if ! grep -q -E "^(1|8|256)$" <<< "$1"; then
+					echo "ERROR: Invalid color profile \"$1\". Please choose one of 1, 8 and 256." >&2
+					return 1
+				fi
+				setColorConfig "$1"
+				;;
+
+			* )
+				echo "ERROR: Invalid arg: $1." >&2
+				return 1
+				;;
+		esac
+		shift
+	done
+	if [[ -z "$server" ]]; then
+		interactiveMode
+	else
+		connectToServer "$(cut -d ':' -f 1 <<< "$server")" "$(cut -d ':' -f 2 <<< "$server")"
+		local result=$?
+		if [[ $result -ne 0 ]]; then
+			echo "Failed connecting to server." >&2
+			return $result
+		fi
+
+		enterAsGuest
+		if [[ $? -eq 1 ]]; then
+			echo "Server denied your request." >&2
+		else
+			runGame
+			return $?
+		fi
+	fi
 }
 
 export mainPid=$$
@@ -1142,16 +1282,16 @@ exec 6<>"${pipePath}"
 trap "onStoppedByUser; exit 1" 1 2 3
 trap "onStoppedByUser" 0
 
+if grep -q "256color" <<< "$TERM"; then
+	setColorConfig 256
+else
+	setColorConfig 8
+fi
 
 if [[ $# -eq 0 ]]; then
-	if grep -q "256color" <<< "$TERM"; then
-		setColorConfig 256
-	else
-		setColorConfig 8
-	fi
 	interactiveMode
 else
-	runWithArgs $*
+	runWithArgs $@
 fi
 
 
