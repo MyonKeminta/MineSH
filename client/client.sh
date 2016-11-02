@@ -1139,6 +1139,12 @@ runGame()
 
 interactiveMode()
 {
+	dialog --version > /dev/null 2> /dev/null
+	if [[ "$?" -ne 0 ]]; then
+		echo "Package 'dialog' is required to run interactive intro." >&2
+		exit 1
+	fi
+
 	local tip1="Please enter the server you want to connect to."
 	local tip2="(Example: www.abc.com:2333 or 127.0.0.1:65535)"
 	local server
