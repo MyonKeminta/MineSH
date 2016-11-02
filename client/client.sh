@@ -1088,7 +1088,7 @@ connectToServer()
 	read serverInfo <&6
 	if [[ $serverInfo != $serverConfirmMsg ]]; then
 		exec 6>&- 6<&-
-		echo "This is not a MineSH server or version mismatched." >&2
+		echo "Cannot establish connection: Maybe this is not a MineSH server, the versions mismatched, or the server is full." >&2
 		return 2
 	fi
 	gameState=$CONNECTED

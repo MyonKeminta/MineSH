@@ -267,7 +267,7 @@ runServer()
 	if [[ -n DISABLE_STYLE ]]; then
 		cmd="${cmd} --disable-style"
 	fi
-	ncat -vlk --sh-exec "$cmd" $port &
+	ncat -vlk --max-conns "$max_online" --sh-exec "$cmd" "$port" &
 	ncatPid=$!
 
 
