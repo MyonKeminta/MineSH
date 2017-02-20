@@ -519,7 +519,8 @@ sendUpdateMapRequest()
 # Generate a integer in [min, max)
 getRand()
 {
-	local ran=$(dd bs=4 count=1 'if=/dev/urandom' status=none | od --format=u --address-radix=none)
+	# local ran=$(dd bs=4 count=1 'if=/dev/urandom' status=none | od --format=u --address-radix=none)
+	local ran=$(dd bs=4 count=1 'if=/dev/urandom' 2>/dev/null | od -tu -Anone)
 	echo $((ran%($2-$1)+$1))
 }
 
@@ -574,7 +575,9 @@ refreshScreen()
 
 initMapPosition()
 {
-	eval $(resize)
+	#eval $(resize)
+	export LINES=$(tput lines)
+	export COLUMNS=$(tput cols)
 
 	export cameraHeight=$((LINES-1))
 	export cameraWidth=$(((COLUMNS-1)/2))
